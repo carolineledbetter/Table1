@@ -16,14 +16,14 @@ Table1 <- function(rowvars, colvariable, data, continuous_labels) {
   binarylabs <- unlist(lapply(binaryvars, function(i){
     if (is.numeric(i)) title <- names(data)[i]
     else title <- i
-    lab <- c(title,paste("  ",levels(data[,i])[2], sep = ''))
+    lab <- c(title,paste("\\  ",levels(data[,i])[2], sep = ''))
     return(lab)
     }))
   nonbinary <- catvars[!(numlevels == 2)]
   nonbinlab <- unlist(lapply(nonbinary, function(x){
     if (is.numeric(x)) title <- names(data)[x]
     else title <- x
-    lab <- c(title,paste("  ",levels(data[,x]), sep = ''))
+    lab <- c(title,paste("\\  ",levels(data[,x]), sep = ''))
     return(lab)
     }))
    
