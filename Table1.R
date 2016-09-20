@@ -69,10 +69,10 @@ Table1 <- function(rowvars, colvariable, data, continuous_labels) {
     p <- summary(aov(x ~ y, data=df))[[1]][5][1,]
     if (p < 0.01) p <- '<0.01'
     else p <- sprintf('%.2f',p)
-    if (summ[,2] >= 10) m_sd <- paste(round(summ[,2],digits=0),"(",round(summ[,3],digits = 0),")",sep = '')
-    else if (summ[,2] >= 1) m_sd <- paste(sprintf('%.1f',summ[,2]),"(",sprintf('%.1f',summ[,2]),")",sep = '')
-    else if (summ[,2] >= 0.1) m_sd <- paste(sprintf('%.2f',summ[,2]),"(",sprintf('%.2f',summ[,2]),")",sep = '')
-    else if (summ[,2] >= 0.01) m_sd <- paste(sprintf('%.2e',summ[,2]),"(",sprintf('%.2e',summ[,2]),")",sep = '')
+    if (summ[1,2] >= 10) m_sd <- paste(round(summ[,2],digits=0),"(",round(summ[,3],digits = 0),")",sep = '')
+    else if (summ[1,2] >= 1) m_sd <- paste(sprintf('%.1f',summ[,2]),"(",sprintf('%.1f',summ[,2]),")",sep = '')
+    else if (summ[1,2] >= 0.1) m_sd <- paste(sprintf('%.2f',summ[,2]),"(",sprintf('%.2f',summ[,2]),")",sep = '')
+    else if (summ[1,2] >= 0.01) m_sd <- paste(sprintf('%.2e',summ[,2]),"(",sprintf('%.2e',summ[,2]),")",sep = '')
     returnRow <- matrix(c(m_sd, p),nrow = 1, byrow = T)
     return(returnRow)
   }
