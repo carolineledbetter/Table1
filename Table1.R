@@ -40,10 +40,11 @@ Table1 <- function(rowvars, colvariable, data, continuous_labels) {
     n <- table(data[,var],data[,colvariable])
     if (length(n[n<5]) == 0){p <- chisq.test(n)$p.value}
     else {p <- fisher.test(n)$p.value}
+    if (p < 0.01) p <- '<0.01'
+    else p <- sprintf('%.2f',round(p, digits = 2))
     percent <- round(n[2,]/table(data[,colvariable])*100, digits = 0)
     n_per <- c(paste(n[2,], "(", percent, ")", sep = ''), "")
-    returnRow <- matrix(c(replicate(col_dim,""),
-                            sprintf('%.2f',round(p, digits = 2)), n_per),nrow = 2, byrow = T)
+    returnRow <- matrix(c(replicate(col_dim,""),p, n_per),nrow = 2, byrow = T)
     return(returnRow)
   }
   
@@ -52,20 +53,24 @@ Table1 <- function(rowvars, colvariable, data, continuous_labels) {
       n <- table(data[,var],data[,colvariable])
       if (length(n[n<5]) == 0){p <- chisq.test(n)$p.value}
       else {p <- fisher.test(n)$p.value}
+      if (p < 0.01) p <- '<0.01'
+      else p <- sprintf('%.2f',round(p, digits = 2))
       percent <- matrix(unlist(lapply(1:levs, function(i){round(n[i,]/table(
        data[,colvariable])*100, digits = 0)})),nrow = levs, byrow = TRUE)
       n_per <- cbind(matrix(paste(n, "(", percent, ")", sep = ''),nrow = levs, byrow = T),replicate(levs,""))
-      returnRow <- rbind(c(replicate(col_dim,""),sprintf('%.2f',round(p, digits = 2))), n_per)
+      returnRow <- rbind(c(replicate(col_dim,""), p), n_per)
     return(returnRow)
   }
   
   returnRowContinuous <- function(var){
     require(doBy)
     df <- data.frame(x = data[,var],y = data[,colvariable])
-    summ <- summaryBy(x ~ y, data = df, FUN=c(mean,sd))
+    summ <- summaryBy(x ~ y, data = df, FUN=c(mean,sd), na.rm = T)
     p <- summary(aov(x ~ y, data=df))[[1]][5][1,]
+    if (p < 0.01) p <- '<0.01'
+    else p <- sprintf('%.2f',round(p, digits = 2))
     m_sd <- paste(round(summ[,2],digits=0),"(",round(summ[,3],digits = 0),")",sep = '')
-    returnRow <- matrix(c(m_sd, sprintf('%.2f',round(p, digits = 2))),nrow = 1, byrow = T)
+    returnRow <- matrix(c(m_sd, p),nrow = 1, byrow = T)
     return(returnRow)
   }
   
@@ -74,7 +79,6 @@ Table1 <- function(rowvars, colvariable, data, continuous_labels) {
                                     data.frame, stringsAsFactors=FALSE))
   conttable <- do.call(rbind, lapply(lapply(contvars, returnRowContinuous),
                                      data.frame, stringsAsFactors=FALSE))
-  finaltab <- as.matrix(rbind.data.frame(c(replicate(col_dim,"N(%)"), ''),cattable,c(replicate(col_dim,"Mean(SD)"), ''),
                          conttable,
                          make.row.names = F,
                          stringsAsFactors = F))
