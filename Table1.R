@@ -57,7 +57,7 @@ Table1 <- function(rowvars, colvariable, data, continuous_labels) {
       else p <- sprintf('%.2f',p)
       percent <- matrix(unlist(lapply(1:levs, function(i){round(n[i,]/table(
        data[,colvariable])*100, digits = 0)})),nrow = levs, byrow = TRUE)
-      n_per <- cbind(matrix(paste(n, "(", percent, ")", sep = ''),nrow = levs, byrow = T),replicate(levs,""))
+      n_per <- cbind(matrix(paste(n, "(", percent, ")", sep = ''),nrow = levs, byrow = F),replicate(levs,""))
       returnRow <- rbind(c(replicate(col_dim,""), p), n_per)
     return(returnRow)
   }
