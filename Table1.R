@@ -35,7 +35,7 @@ Table1 <- function(rowvars, colvariable, data, continuous_labels) {
     else continuous_labels <- contvars
   }
   else if (!is.atomic(continuous_labels)) continuous_labels <- unlist(continuous_labels)
-   rnames <- c("", binarylabs, nonbinlab,"",continuous_labels) 
+   rnames <- c(" ", binarylabs, nonbinlab," ",continuous_labels) 
 
   #function to return row for binary categorical variables
   returnRowBin <- function(var){
