@@ -1,5 +1,7 @@
 Table1 <- function(rowvars, colvariable, data, continuous_labels) {
   if (!is.atomic(rowvars)) stop("Please pass row variables as a vector")
+  if (length(unique(data[,colvariable])) > 20) 
+    stop("Column Variable has more than 20 unique values,please pass a column variable with less than 20 unique values")
   if (!is.factor(data[,colvariable])) data[,colvariable] <- factor(data[,colvariable])
   #set column names
   Col_n <- table(data[,colvariable])
