@@ -57,8 +57,8 @@ Table1 <- function(rowvars, colvariable, data, continuous_labels) {
       else {p <- fisher.test(n)$p.value}
       if (p < 0.01) p <- '<0.01'
       else p <- sprintf('%.2f',p)
-      percent <- sapply(1:levs, function(i){round(n[i,]/table(
-       data[,colvariable])*100, digits = 0)})
+      percent <- t(sapply(1:levs, function(i){round(n[i,]/table(
+       data[,colvariable])*100, digits = 0)}))
       n_per <- cbind(matrix(paste(n, "(", percent, ")", sep = ''),nrow = levs, byrow = F),replicate(levs,""))
       returnRow <- rbind(c(replicate(col_dim,""), p), n_per)
     return(returnRow)
