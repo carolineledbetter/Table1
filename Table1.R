@@ -1,11 +1,12 @@
-Table1 <- function(rowvars, colvariable, data, continuous_labels) {
+Table1 <- function(rowvars, colvariable, data, continuous_labels = NULL, incl_missing = F) {
   if (!is.atomic(rowvars)) stop("Please pass row variables as a vector")
   if (length(unique(data[,colvariable])) > 20) 
     stop("Column Variable has more than 20 unique values,please pass a column variable with less than 20 unique values")
   if (!is.factor(data[,colvariable])) data[,colvariable] <- factor(data[,colvariable])
   #set column names
   Col_n <- table(data[,colvariable])
-  cnames <- c(paste(levels(data[,colvariable]), " (n=", Col_n, ")", sep = ''), 'p-value')
+  cnames <- c(paste(levels(data[,colvariable]), " (n=", format(Col_n, big.mark = ',', trim = T), 
+                    ")", sep = ''), 'p-value')
   
   #col dimensions
   col_dim <- length(levels(data[,colvariable]))
@@ -29,6 +30,17 @@ Table1 <- function(rowvars, colvariable, data, continuous_labels) {
     return(lab)
     }))
    
+  #add missing level for factors 
+  if(incl_missing == T) {
+    for(i in catvars){
+      if(any(is.na(data[,i]))){
+        levels(data[,i]) <- c(levels(data[,i]),'Missing')
+        data[,i][is.na(data[,i])] <- 'Missing'
+      }
+    }; remove(i)
+  }
+  
+  
   contvars <- rowvars[vartypes == F]
   if(missing(continuous_labels)){
     if (is.numeric(contvars)) continuous_labels <- unlist(lapply(contvars, function(i){names(data)[i]}))
@@ -45,7 +57,7 @@ Table1 <- function(rowvars, colvariable, data, continuous_labels) {
     if (p < 0.01) p <- '<0.01'
     else p <- sprintf('%.2f',p)
     percent <- round(n[2,]/table(data[,colvariable])*100, digits = 0)
-    n_per <- c(paste(n[2,], "(", percent, ")", sep = ''), "")
+    n_per <- c(paste(format(n[2,], big.mark = ',', trim = T), "(", percent, ")", sep = ''), "")
     returnRow <- matrix(c(replicate(col_dim,""),p, n_per),nrow = 2, byrow = T)
     return(returnRow)
   }
@@ -59,7 +71,9 @@ Table1 <- function(rowvars, colvariable, data, continuous_labels) {
       else p <- sprintf('%.2f',p)
       percent <- t(sapply(1:levs, function(i){round(n[i,]/table(
        data[,colvariable])*100, digits = 0)}))
-      n_per <- cbind(matrix(paste(n, "(", percent, ")", sep = ''),nrow = levs, byrow = F),replicate(levs,""))
+      n_per <- cbind(matrix(paste(format(n, big.mark = ',', trim = T), 
+                                  "(", percent, ")", sep = ''),nrow = levs, 
+                            byrow = F),replicate(levs,""))
       returnRow <- rbind(c(replicate(col_dim,""), p), n_per)
     return(returnRow)
   }
