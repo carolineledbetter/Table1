@@ -6,6 +6,9 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
   if (length(unique(data[,colvariable])) > 20) 
     stop("Column Variable has more than 20 unique values, please pass a column variable with less than 20 unique values")
   if (!is.factor(data[,colvariable])) data[,colvariable] <- factor(data[,colvariable])
+  if (!is.null(row_var_names) & length(rowvars) != length(row_var_names))
+    stop("Length of Row Variable Names is not equal to Row Varaibales")
+  
   #set column names
   Col_n <- table(data[,colvariable])
   if(incl_pvalues == T){
@@ -52,21 +55,14 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
   
   
   contvars <- rowvars[vartypes == F]
-  if (missing(row_var_names)){
-    if (is.numeric(contvars)){
-      continuous_labels <- unlist(lapply(contvars, 
-                                         function(i){names(data)[i]}))
-    }
-    else {
-      continuous_labels <- contvars
-    }
+  
+  if (is.numeric(contvars)){
+    continuous_labels <- unlist(lapply(contvars, 
+                                       function(i){names(data)[i]}))
   }
-    
   else {
-    if (!is.atomic(continuous_labels)){
-    continuous_labels <- unlist(continuous_labels)
+    continuous_labels <- contvars
     }
-  }
   
   if(incl_missing == T & length(contvars) != 0) {
     continuous_labels  <- unlist(
@@ -88,6 +84,15 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
     rnames <- c(" ", binarylabs, nonbinlab)
   }
  
+  if(!is.null(row_var_names = NULL)){
+      if (is.numeric(rowvars)){
+        n <- match(names(data)[rowvars], rnames)
+      }
+    else{
+      n <- match(rowvars, rnames)
+    }
+      rnames[n] <- row_var_names
+    }
   
   # function to return row for binary categorical variables
   
