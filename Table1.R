@@ -7,7 +7,9 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
     stop("Column Variable has more than 20 unique values, please pass a column variable with less than 20 unique values")
   if (!is.factor(data[,colvariable])) data[,colvariable] <- factor(data[,colvariable])
   if (!is.null(row_var_names) & length(rowvars) != length(row_var_names))
-    stop("Length of Row Variable Names is not equal to Row Varaibales")
+    stop("Length of Row Variable Names is not equal to Row Variables")
+  if (length(unique(rowvars)) != length(rowvars))
+    stop('You may not pass duplicate row variables')
   
   #set column names
   Col_n <- table(data[,colvariable])
