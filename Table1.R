@@ -17,8 +17,7 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
     cnames <- c(paste0(levels(data[,colvariable]), " (n=", 
                        format(Col_n, big.mark = ',', trim = T), 
                        ")"), 'p-value')
-  }
-  else {
+  } else {
     cnames <- c(paste0(levels(data[,colvariable]), " (n=", 
                        format(Col_n, big.mark = ',', trim = T), 
                        ")"))
@@ -61,8 +60,7 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
   if (is.numeric(contvars)){
     continuous_labels <- unlist(lapply(contvars, 
                                        function(i){names(data)[i]}))
-  }
-  else {
+  } else {
     continuous_labels <- contvars
     }
   
@@ -89,120 +87,94 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
   if(!is.null(row_var_names = NULL)){
       if (is.numeric(rowvars)){
         n <- match(names(data)[rowvars], rnames)
-      }
-    else{
-      n <- match(rowvars, rnames)
-    }
-      rnames[n] <- row_var_names
-    }
-  
-  # function to return row for binary categorical variables
-  
-  # with out p-values
-  returnRowBin <- function(var){
-    n <- table(data[,var],data[,colvariable])
-    percent <- round(n[2,]/table(data[,colvariable])*100, digits = 0)
-    n_per <- c(paste(n[2,], "(", percent, ")", sep = ''))
-    returnRow <- matrix(c(replicate(col_dim,""), n_per),nrow = 2, byrow = T)
-    return(returnRow)
+      } else{
+        n <- match(rowvars, rnames)
+        }
+    rnames[n] <- row_var_names
   }
   
-  # including p_values
-  if(incl_pvalues == T) {
-    returnRowBin <- function(var){
-      n <- table(data[,var],data[,colvariable])
-      p <- ifelse(length(n[n<5]) == 0, chisq.test(n)$p.value, 
-                  fisher.test(n)$p.value)
+  # function to return row for binary categorical variables
+  returnRowBin <- function(var){
+    n <- table(data[,var],data[,colvariable])
+    p <- NULL
+    rep <- 0
+    if (incl_pvalues == T){
+      p <- anova(glm(as.formula(paste0(colvariable, "~", var)), 
+                     data = data, 
+                     family = binomial()), test = 'LRT')$`Pr(>Chi)`[2]
       p <- ifelse(p < 0.01, '<0.01', sprintf('%.2f',p))
-      percent <- round(n[2,]/table(data[,colvariable])*100, digits = 0)
-      n_per <- c(paste0(format(n[2,], big.mark = ',', trim = T), 
-                     "(", percent, ")"), "")
-      returnRow <- matrix(c(replicate(col_dim,""),p, n_per),nrow = 2, byrow = T)
-      return(returnRow)
+      rep <- 1
     }
+    
+    percent <- round(n[2,]/table(data[,colvariable])*100, digits = 0)
+    n_per <- c(paste0(format(n[2,], big.mark = ',', trim = T), 
+                      "(", percent, ")"), replicate(rep, " "))
+    returnRow <- matrix(c(replicate(col_dim, 
+                                    " "), p, n_per), nrow = 2, 
+                        byrow = T)
+    return(returnRow)
   }
 
   # function to return row for nonbinary categorical variables
   returnRowNonBin <- function(var){
     levs <- length(levels(data[,var]))
     n <- table(data[,var],data[,colvariable])
+    p <- NULL
+    rep <- 0
+    if (incl_pvalues == T){
+      p <- anova(glm(as.formula(paste0(colvariable, "~", var)), 
+                     data = data[data[,var] != 'Missing',], 
+                     family = binomial()), test = 'LRT')$`Pr(>Chi)`[2]
+      p <- ifelse(p < 0.01, '<0.01', sprintf('%.2f',p))
+      rep <- levs
+    }
+    
     percent <- t(sapply(1:levs, function(i){round(n[i,]/table(
       data[,colvariable])*100, digits = 0)}))
-    n_per <- cbind(matrix(paste(n, "(", percent, ")", sep = ''),nrow = levs, 
-                          byrow = F))
-    returnRow <- rbind(c(replicate(col_dim,"")), n_per)
+    n_per <- cbind(matrix(paste(format(n, big.mark = ',', trim = T), 
+                                "(", percent, ")", sep = ''),nrow = levs, 
+                          byrow = F), replicate(rep, " "))
+    returnRow <- rbind(c(replicate(col_dim, ""), p), n_per)
     return(returnRow)
   }
   
-  # including p_values/ no missing
-  if(incl_pvalues == T & incl_missing == F) {
-    returnRowNonBin <- function(var){
-      levs <- length(levels(data[,var]))
-      n <- table(data[,var],data[,colvariable])
-      p <- ifelse(length(n[n<5]) == 0, chisq.test(n)$p.value, 
-                  fisher.test(n)$p.value)
-      p <- ifelse(p < 0.01, '<0.01', sprintf('%.2f',p))
-      percent <- t(sapply(1:levs, 
-                          function(i){
-                            round(n[i,]/table(data[,colvariable])*100, 
-                                  digits = 0)}))
-      n_per <- cbind(matrix(paste(format(n, big.mark = ',', trim = T), 
-                                  "(", percent, ")", sep = ''),nrow = levs, 
-                            byrow = F),replicate(levs,""))
-      returnRow <- rbind(c(replicate(col_dim,""), p), n_per)
-      return(returnRow)
-    }
-  }
-  
-  # including p_values/missing
-  if(incl_pvalues == T & incl_missing == T) {
-    returnRowNonBin <- function(var){
-      levs <- length(levels(data[,var]))
-      n <- table(data[,var],data[,colvariable])
-      m <- n[1:(levs-1),]
-      p <- ifelse(length(m[m<5]) == 0, chisq.test(m)$p.value, 
-                  fisher.test(m)$p.value)
-      p <- ifelse(p < 0.01, '<0.01', sprintf('%.2f',p))
-      percent <- t(sapply(1:levs, 
-                          function(i){
-                            round(n[i,]/table(data[,colvariable])*100, 
-                                  digits = 0)}))
-      n_per <- cbind(matrix(paste(format(n, big.mark = ',', trim = T), 
-                                  "(", percent, ")", sep = ''),nrow = levs, 
-                            byrow = F),replicate(levs,""))
-      returnRow <- rbind(c(replicate(col_dim,""), p), n_per)
-      return(returnRow)
-    }
-  }
+
   
   # function to return continuous rows 
   returnRowContinuous <- function(var){
-    require(doBy)
     df <- data.frame(x = data[,var], y = data[,colvariable])
-    summ <- summaryBy(x ~ y, data = df, FUN=c(mean,sd), na.rm = T)
+    summ <- sapply(levels(data[,colvariable]), function(i) {
+      mean <- mean(data[,var][data[,colvariable] == i], 
+                   na.rm = T)
+      sd <- sd(data[,var][data[,colvariable] == i], 
+               na.rm = T)
+      return(c(mean,sd))
+    })
+    
     p <- NULL
     if (incl_pvalues == T){
       p <- summary(aov(x ~ y, data=df))[[1]][5][1,]
       p <- ifelse (p < 0.01, '<0.01', sprintf('%.2f',p))
     }
     
-    if (abs(summ[1,2]) >= 10){
-      m_sd <- paste0(round(summ[,2],digits=0), "(", 
-                     round(summ[,3],digits = 0), ")")
-    }
-    else{
+    if (abs(summ[1,1]) >= 10){
+      m_sd <- paste0(round(summ[1,],digits=0), "(", 
+                     round(summ[2,],digits = 0), ")")
+    } else{
       if (abs(summ[1,2]) >= 1){
-        m_sd <- paste0(sprintf('%.1f',summ[,2]), "(", 
-                       sprintf('%.1f',summ[,3]), ")")
-      }
-      else{
+        m_sd <- paste0(sprintf('%.1f',summ[1,]), "(", 
+                       sprintf('%.1f',summ[2,]), ")")
+      } else{
         if (abs(summ[1,2]) >= 0.1){
-          m_sd <- paste0(sprintf('%.2f',summ[,2]), "(", 
-                         sprintf('%.2f',summ[,3]), ")")
-        }
-        else{
-          m_sd <- paste0(sprintf('%.2e',summ[,2]), "(", 
-                           sprintf('%.2e',summ[,3]), ")")
+          m_sd <- paste0(sprintf('%.2f',summ[1,]), "(", 
+                         sprintf('%.2f',summ[2,]), ")")
+        } else{
+          if (abs(summ[1,2]) >= 0.01){
+            m_sd <- paste0(sprintf('%.3f',summ[1,]), "(", 
+                           sprintf('%.3f',summ[2,]), ")")
+          }
+          m_sd <- paste0(sprintf('%.2e',summ[1,]), "(", 
+                           sprintf('%.2e',summ[2,]), ")")
           }}}
     returnRow <- matrix(c(m_sd, p),nrow = 1, byrow = T)
     if (incl_missing == T & sum(is.na(df$x)) > 0){
