@@ -99,13 +99,16 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
     rnames <- c(" ", binarylabs, nonbinlab)
   }
  
-  if(!is.null(row_var_names = NULL)){
-    n <- match(rowvars, rnames)
-    rnames[n] <- row_var_names
+  if(!is.null(row_var_names)){
+    tmp <- rowvars
     if (emphasis == 'b') {
-      rnames[n] <- paste0('**', row_var_names, '**')
+      tmp <- paste0('**', rowvars, '**')
+      row_var_names <- paste0('**', row_var_names, '**')
     }
+    n <- match(tmp, rnames)
+    rnames[n] <- row_var_names
   }
+
   
   # function to return row for binary categorical variables
   returnRowBin <- function(var){
