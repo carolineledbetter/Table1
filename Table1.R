@@ -1,5 +1,5 @@
 Table1 <- function(rowvars, colvariable, data, row_var_names = NULL, 
-                   incl_missing = F, incl_pvalues = T) {
+                   incl_missing = F, incl_pvalues = T, emphasis = c('s', 'b', 'n')) {
   if (incl_missing == T & incl_pvalues == T) 
     warning('P values are only calculated on non-missing observations')
   if (!is.atomic(rowvars)) stop("Please pass row variables as a vector")
@@ -11,24 +11,29 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
   if (length(unique(rowvars)) != length(rowvars))
     stop('You may not pass duplicate row variables')
   
+  # set numeric colvariable and rownames to character names so they 
+  # can be used in formula arguments also names will be used in table
+  if (is.numeric(rowvars)){
+    rowvars <- names(data)[rowvars]
+  }
+  if (is.numeric(colvariable))  colvariable <- names(data)[colvariable]
+
   #set column names
   Col_n <- table(data[,colvariable])
-  if(incl_pvalues == T){
-    cnames <- c(paste0(levels(data[,colvariable]), " (n=", 
-                       format(Col_n, big.mark = ',', trim = T), 
-                       ")"), 'p-value')
-  } else {
-    cnames <- c(paste0(levels(data[,colvariable]), " (n=", 
-                       format(Col_n, big.mark = ',', trim = T), 
-                       ")"))
-  }
+  p_str <- NULL
+  if(incl_pvalues == T) p_str <- 'p_value'
+
+  cnames <- c(paste0(levels(data[,colvariable]), " (n=", 
+                     format(Col_n, big.mark = ',', trim = T), 
+                     ")"), p_str)
   
   #col dimensions
   col_dim <- length(levels(data[,colvariable]))
   
-  #determine row types and names
+  # determine row types and names
   vartypes <- lapply(rowvars, function(i){is.factor(data[,i])})
   catvars <- rowvars[vartypes == T]
+               
   
   #add missing level for factors 
   if(incl_missing == T) {
@@ -40,35 +45,45 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
     }; remove(i)
   }
   
+  # set row name emphasis
+  emphasis <- match.arg(emphasis)
+  fxn <- function(i, title){switch(emphasis, 
+         s = c(title, paste0("\\  ",levels(data[,i]))), 
+         b = c(paste0('**', title, '**'), levels(data[,i])), 
+         n = c(title, levels(data[,i])))
+  }
+  
   numlevels <- lapply(catvars, function(i){length(levels(data[,i]))})
   binaryvars <- catvars[numlevels == 2]
   binarylabs <- unlist(lapply(binaryvars, function(i){
-    title <- ifelse(is.numeric(i), names(data)[i], i)
-    lab <- c(title,paste("\\  ",levels(data[,i])[2], sep = ''))
+    title <- i
+    lab <- fxn(i, title)[1:2]
     return(lab)
     }))
   nonbinary <- catvars[!(numlevels == 2)]
   nonbinlab <- unlist(lapply(nonbinary, function(x){
-    title <- ifelse(is.numeric(x), names(data)[x], x)
-    lab <- c(title,paste("\\  ",levels(data[,x]), sep = ''))
+    title <- x
+    lab <- fxn(x, title)
     return(lab)
     }))
   
   
   contvars <- rowvars[vartypes == F]
+
+  continuous_labels <- contvars
   
-  if (is.numeric(contvars)){
-    continuous_labels <- unlist(lapply(contvars, 
-                                       function(i){names(data)[i]}))
-  } else {
-    continuous_labels <- contvars
-    }
+  if(emphasis == 'b') {
+    continuous_labels <- paste0('**', continuous_labels, '**')
+  }
   
   if(incl_missing == T & length(contvars) != 0) {
     continuous_labels  <- unlist(
       lapply(1:length(contvars), function(x){
         if (sum(is.na(data[,contvars[x]])) >0){
-          return(list(continuous_labels[x], '\\ Missing N(%)'))
+          emp <- ''
+          if (emphasis == 's') emp <- '\\ '
+          return(list(continuous_labels[x], 
+                      paste0(emp, 'Missing N(%)')))
         }
         return(continuous_labels[x])
       }))
@@ -85,12 +100,11 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
   }
  
   if(!is.null(row_var_names = NULL)){
-      if (is.numeric(rowvars)){
-        n <- match(names(data)[rowvars], rnames)
-      } else{
-        n <- match(rowvars, rnames)
-        }
+    n <- match(rowvars, rnames)
     rnames[n] <- row_var_names
+    if (emphasis == 'b') {
+      rnames[n] <- paste0('**', row_var_names, '**')
+    }
   }
   
   # function to return row for binary categorical variables
@@ -142,7 +156,6 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
   
   # function to return continuous rows 
   returnRowContinuous <- function(var){
-    df <- data.frame(x = data[,var], y = data[,colvariable])
     summ <- sapply(levels(data[,colvariable]), function(i) {
       mean <- mean(data[,var][data[,colvariable] == i], 
                    na.rm = T)
@@ -153,7 +166,9 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
     
     p <- NULL
     if (incl_pvalues == T){
-      p <- summary(aov(x ~ y, data=df))[[1]][5][1,]
+      p <- summary(aov(
+        as.formula(paste0(var, "~", colvariable)), 
+        data=data))[[1]][5][1,]
       p <- ifelse (p < 0.01, '<0.01', sprintf('%.2f',p))
     }
     
@@ -177,10 +192,12 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
                            sprintf('%.2e',summ[2,]), ")")
           }}}
     returnRow <- matrix(c(m_sd, p),nrow = 1, byrow = T)
-    if (incl_missing == T & sum(is.na(df$x)) > 0){
-      N <- summaryBy(x ~ y, data = df, 
-                               FUN = function(i) sum(is.na(i)))[,2]
-      pct <- as.vector(round((N/table(df$y))*100,0))
+    if (incl_missing == T & sum(is.na(data[ , var])) > 0){
+      N <- sapply(levels(data[,colvariable]), function(i){
+             sum(is.na(data[,var][data[,colvariable] == i]))
+                 })
+      pct <- as.vector(round(
+        (N/table(data[ , colvariable]))*100,0))
       spacer <- NULL
       if (incl_pvalues == T){
         spacer <- ' '
