@@ -1,6 +1,16 @@
 Table1 <- function(rowvars, colvariable, data, row_var_names = NULL, 
                    incl_missing = F, incl_pvalues = T, 
                    emphasis = c('s', 'b', 'n')) {
+  # do not include p_values if data is not stratified
+  # setup dummy variable for unstratified data
+  if (is.null(colvariable)) {
+    incl_pvalues <- F
+    data$dummy <- factor(rep('', nrow(data)))
+    colvariable <- 'dummy'
+  }
+  
+  # setup dummy variable for unstratified data
+  
   # Warn users p_values are not calculated on missing obs
   if (incl_missing == T & incl_pvalues == T) {
     warning('P values are only calculated on non-missing observations')
@@ -38,8 +48,8 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
   Col_n <- table(data[, colvariable])
   p_str <- NULL
   if(incl_pvalues == T) p_str <- 'p_value'
-
-  cnames <- c(paste0(levels(data[, colvariable]), " (n=", 
+  spacer <- ifelse(colvariable == 'dummy', '(N=', ' (n=')
+  cnames <- c(paste0(levels(data[, colvariable]), spacer,  
                      format(Col_n, big.mark = ',', trim = T), 
                      ")"), p_str)
   
@@ -200,7 +210,7 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
           m_sd <- paste0(sprintf('%.2e',summ[1,]), "(", 
                            sprintf('%.2e',summ[2,]), ")")
           }}}
-    returnRow <- matrix(c(m_sd, p),nrow = 1, byrow = T)
+    returnRow <- matrix(c(m_sd, p), nrow = 1, byrow = T)
     
     # add row for missing if requested
     if (incl_missing == T & sum(is.na(data[ , var])) > 0){
@@ -229,22 +239,18 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
                         lapply(c(lapply(binaryvars, returnRowCat, r = 1), 
                                  lapply(nonbinary, returnRowCat, r = 0)), 
                                data.frame, stringsAsFactors=FALSE))
+    rowheadercat <- rep("N(%)", col_dim)
     if(incl_pvalues == T){
-      rowheadercat <- c(replicate(col_dim, "N(%)"), '')
-    }
-    else{
-      rowheadercat <- c(replicate(col_dim, "N(%)"))
+      rowheadercat <- c(rowheadercat, '')
     }
   }
   if (length(contvars) != 0){
     conttable <- do.call(rbind, 
                          lapply(lapply(contvars, returnRowContinuous), 
                                 data.frame, stringsAsFactors=FALSE))
+    rowheadercont <- rep("Mean(SD)", col_dim)
     if(incl_pvalues == T){
-      rowheadercont <- c(replicate(col_dim, "Mean(SD)"), '')
-    }
-    else{
-      rowheadercont <- c(replicate(col_dim, "Mean(SD)"))
+      rowheadercont <- c(rowheadercont, '')
     }
   }
 
