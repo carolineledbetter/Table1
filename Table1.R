@@ -218,7 +218,7 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
              sum(is.na(data[, var][data[, colvariable] == i]))
                  })
       pct <- as.vector(round(
-        (N/table(data[, colvariable]))*100,0))
+        (N/table(data[, colvariable])) * 100,0))
       spacer <- NULL
       if (incl_pvalues == T){
         spacer <- ' '
