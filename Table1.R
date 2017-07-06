@@ -1,16 +1,34 @@
 Table1 <- function(rowvars, colvariable, data, row_var_names = NULL, 
                    incl_missing = F, incl_pvalues = T, 
                    emphasis = c('s', 'b', 'n')) {
+  # determing if data is a design object or data frame
+  weighted <- F
+  if (!is.data.frame(data)){
+    classData <- class(data)
+    if('survey.design' %in% classData) {
+      design <- data
+      data <- design$variables[0,]
+      weighted <- T
+      if (incl_missing == T) {
+        warning('Missing is turned off for weighted tables')
+        incl_missing <- Fdes
+      }
+    } else {
+        stop('Data is not a data frame or design object')
+      }
+  }
+  
   # do not include p_values if data is not stratified
   # setup dummy variable for unstratified data
   if (is.null(colvariable)) {
     incl_pvalues <- F
     data$dummy <- factor(rep('', nrow(data)))
     colvariable <- 'dummy'
+    if (weighted == T){
+      design$variables$dummy <- factor(rep('', nrow(design$variables)))
+    }
   }
-  
-  # setup dummy variable for unstratified data
-  
+
   # Warn users p_values are not calculated on missing obs
   if (incl_missing == T & incl_pvalues == T) {
     warning('P values are only calculated on non-missing observations')
@@ -19,13 +37,26 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
   #check that all arguments are valid 
   if (!is.atomic(rowvars)) stop("Please pass row variables as a vector")
   
+  if (weighted == T) {
+    if (length(unique(design$variables[, colvariable])) > 20) {
+      stop(paste0("Column Variable has more than 20 unique values,", 
+                  "please pass a column variable with less", 
+                  "than 20 unique values"))
+    }
+    
+    if (!is.factor(design$variables[, colvariable])) {
+      design$variables[, colvariable] <- 
+            factor(design$variables[, colvariable])
+    }
+  } 
+  
   if (length(unique(data[, colvariable])) > 20) {
     stop(paste0("Column Variable has more than 20 unique values,", 
          "please pass a column variable with less than 20 unique values"))
   }
   
   if (!is.factor(data[, colvariable])) {
-    data[,colvariable] <- factor(data[, colvariable])
+    data[, colvariable] <- factor(data[, colvariable])
   }
   
   if (!is.null(row_var_names) & length(rowvars) != length(row_var_names)){
@@ -45,7 +76,13 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
   if (is.numeric(colvariable))  colvariable <- names(data)[colvariable]
 
   #set column names
-  Col_n <- table(data[, colvariable])
+  if (weighted == T) {
+    Col_n <- svytable(as.formula(paste0("~", colvariable)),
+                      design, round = T)
+  } else {
+    Col_n <- table(data[, colvariable])
+  }
+  
   p_str <- NULL
   if(incl_pvalues == T) p_str <- 'p_value'
   spacer <- ifelse(colvariable == 'dummy', '(N=', ' (n=')
@@ -148,21 +185,31 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
   # function to return rows for categorical variables
   returnRowCat <- function(var, r){
     levs <- length(levels(data[,var])) - r
-    n <- table(data[,var],data[,colvariable])
+    if (weighted == T){
+      n <- svytable(as.formula(paste0("~", var, ' + ', 
+                                      colvariable)), design, 
+                    round = T)
+    } else {
+      n <- table(data[, var],data[, colvariable])
+    }
     p <- NULL
     repp <- 0
     # if requested get p-value using a univariable logisitic regression and a 
     # liklihood ratio test
     if (incl_pvalues == T){
-      p <- anova(glm(as.formula(paste0(colvariable, "~", var)), 
+      if (weighted == T){
+        p <- summary(n)$statistic$p.value
+      } else {
+        p <- anova(glm(as.formula(paste0(colvariable, "~", var)), 
                      data = data, 
                      family = binomial()), test = 'LRT')$`Pr(>Chi)`[2]
+      }
       p <- ifelse(p < 0.01, '<0.01', sprintf('%.2f',p))
       repp <- levs
     }
     
-    percent <- t(sapply(1:levs, function(i){round(n[i,] / table(
-      data[,colvariable]) * 100, digits = 0)}))
+    percent <- t(sapply(1:levs, function(i){round(n[i,] / apply(n,2,sum) 
+                                                  * 100, digits = 0)}))
     n_per <- cbind(matrix(paste0(format(n[1:levs,], big.mark = ',', trim = T), 
                                  "(", percent, ")"), nrow = levs, 
                           byrow = F), rep(" ", repp))
@@ -173,20 +220,33 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
   # function to return continuous rows 
   returnRowContinuous <- function(var){
     # make table with mean and sd
-    summ <- sapply(levels(data[,colvariable]), function(i) {
-      mean <- mean(data[,var][data[,colvariable] == i], 
+    if (weighted == T){ 
+      summ <- svyby(formula = as.formula(paste0("~", var)),
+                    by = as.formula(paste0("~", colvariable)), 
+                    FUN = svymean, design = design)
+      # convert to same structure as unweighted summary
+      summ <- matrix(c(summ[,2], summ[,3]), nrow = 2, byrow = T)
+    } else {
+      summ <- sapply(levels(data[, colvariable]), function(i) {
+        mean <- mean(data[, var][data[, colvariable] == i], 
                    na.rm = T)
-      sd <- sd(data[,var][data[,colvariable] == i], 
+        sd <- sd(data[, var][data[, colvariable] == i], 
                na.rm = T)
-      return(c(mean,sd))
-    })
+        return(c(mean, sd))
+      })
+    }
     
     p <- NULL
     # return p-value if requested using anova
     if (incl_pvalues == T){
-      p <- summary(aov(
-        as.formula(paste0(var, "~", colvariable)), 
-        data = data))[[1]][5][1, ]
+      if (weighted == T) {
+        p <- summary(svyglm(as.formula(paste0(colvariable, "~", var)),
+                            design = design, 
+                            family = 'quasibinomial'))$coefficients[2, 4]
+      } else {
+        p <- summary(aov(as.formula(paste0(var, "~", colvariable)), 
+          data = data))[[1]][5][1, ]
+      }
       p <- ifelse (p < 0.01, '<0.01', sprintf('%.2f', p))
     }
     
