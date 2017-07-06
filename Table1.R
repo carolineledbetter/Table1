@@ -11,7 +11,7 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
       weighted <- T
       if (incl_missing == T) {
         warning('Missing is turned off for weighted tables')
-        incl_missing <- Fdes
+        incl_missing <- F
       }
     } else {
         stop('Data is not a data frame or design object')
