@@ -186,39 +186,39 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
     if (incl_pvalues == T){
       p <- summary(aov(
         as.formula(paste0(var, "~", colvariable)), 
-        data=data))[[1]][5][1,]
-      p <- ifelse (p < 0.01, '<0.01', sprintf('%.2f',p))
+        data = data))[[1]][5][1, ]
+      p <- ifelse (p < 0.01, '<0.01', sprintf('%.2f', p))
     }
     
     #round mean and sd appropriately
-    if (abs(summ[1,1]) >= 10){
-      m_sd <- paste0(round(summ[1,],digits=0), "(", 
-                     round(summ[2,],digits = 0), ")")
+    if (abs(summ[1, 1]) >= 10){
+      m_sd <- paste0(round(summ[1, ], digits = 0), "(", 
+                     round(summ[2, ], digits = 0), ")")
     } else{
-      if (abs(summ[1,2]) >= 1){
-        m_sd <- paste0(sprintf('%.1f',summ[1,]), "(", 
-                       sprintf('%.1f',summ[2,]), ")")
+      if (abs(summ[1, 2]) >= 1){
+        m_sd <- paste0(sprintf('%.1f', summ[1, ]), "(", 
+                       sprintf('%.1f', summ[2, ]), ")")
       } else{
-        if (abs(summ[1,2]) >= 0.1){
-          m_sd <- paste0(sprintf('%.2f',summ[1,]), "(", 
-                         sprintf('%.2f',summ[2,]), ")")
+        if (abs(summ[1, 2]) >= 0.1){
+          m_sd <- paste0(sprintf('%.2f', summ[1, ]), "(", 
+                         sprintf('%.2f', summ[2, ]), ")")
         } else{
           if (abs(summ[1,2]) >= 0.01){
-            m_sd <- paste0(sprintf('%.3f',summ[1,]), "(", 
-                           sprintf('%.3f',summ[2,]), ")")
+            m_sd <- paste0(sprintf('%.3f', summ[1, ]), "(", 
+                           sprintf('%.3f', summ[2, ]), ")")
           }
-          m_sd <- paste0(sprintf('%.2e',summ[1,]), "(", 
-                           sprintf('%.2e',summ[2,]), ")")
+          m_sd <- paste0(sprintf('%.2e', summ[1, ]), "(", 
+                           sprintf('%.2e', summ[2, ]), ")")
           }}}
     returnRow <- matrix(c(m_sd, p), nrow = 1, byrow = T)
     
     # add row for missing if requested
-    if (incl_missing == T & sum(is.na(data[ , var])) > 0){
-      N <- sapply(levels(data[,colvariable]), function(i){
-             sum(is.na(data[,var][data[,colvariable] == i]))
+    if (incl_missing == T & sum(is.na(data[, var])) > 0){
+      N <- sapply(levels(data[, colvariable]), function(i){
+             sum(is.na(data[, var][data[, colvariable] == i]))
                  })
       pct <- as.vector(round(
-        (N/table(data[ , colvariable]))*100,0))
+        (N/table(data[, colvariable]))*100,0))
       spacer <- NULL
       if (incl_pvalues == T){
         spacer <- ' '
@@ -262,7 +262,7 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
                                          stringsAsFactors = F))
 
 
-  dimnames(finaltab) <- list(rnames,cnames)
+  dimnames(finaltab) <- list(rnames, cnames)
   return(finaltab)
 }
 
