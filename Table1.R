@@ -6,6 +6,9 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
   if (!is.data.frame(data)){
     classData <- class(data)
     if('survey.design' %in% classData) {
+      if (!requireNamespace('survey', quietly = T)) {
+        stop('Survey Package is required for weighted tables')
+      }
       design <- data
       data <- design$variables[0,]
       weighted <- T
@@ -47,6 +50,7 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
     if (!is.factor(design$variables[, colvariable])) {
       design$variables[, colvariable] <- 
             factor(design$variables[, colvariable])
+      data[, colvariable] <- factor(design$variables[, colvariable])[0]
     }
   } 
   
@@ -77,7 +81,7 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
 
   #set column names
   if (weighted == T) {
-    Col_n <- svytable(as.formula(paste0("~", colvariable)),
+    Col_n <- survey::svytable(as.formula(paste0("~", colvariable)),
                       design, round = T)
   } else {
     Col_n <- table(data[, colvariable])
@@ -186,9 +190,11 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
   returnRowCat <- function(var, r){
     levs <- length(levels(data[,var])) - r
     if (weighted == T){
-      n <- svytable(as.formula(paste0("~", var, ' + ', 
+      n <- survey::svytable(as.formula(paste0("~", var, ' + ', 
                                       colvariable)), design, 
                     round = T)
+      svychisq(as.formula(paste0("~", var, ' + ', 
+                                 colvariable)), design, statistic = 'F')
     } else {
       n <- table(data[, var],data[, colvariable])
     }
@@ -198,7 +204,9 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
     # liklihood ratio test
     if (incl_pvalues == T){
       if (weighted == T){
-        p <- summary(n)$statistic$p.value
+        p <- survey::svychisq(as.formula(paste0("~", var, ' + ', 
+                                        colvariable)), design, 
+                              statistic = 'F')$p.value
       } else {
         p <- anova(glm(as.formula(paste0(colvariable, "~", var)), 
                      data = data, 
@@ -221,9 +229,9 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
   returnRowContinuous <- function(var){
     # make table with mean and sd
     if (weighted == T){ 
-      summ <- svyby(formula = as.formula(paste0("~", var)),
+      summ <- survey::svyby(formula = as.formula(paste0("~", var)),
                     by = as.formula(paste0("~", colvariable)), 
-                    FUN = svymean, design = design)
+                    FUN = survey::svymean, design = design)
       # convert to same structure as unweighted summary
       summ <- matrix(c(summ[,2], summ[,3]), nrow = 2, byrow = T)
     } else {
@@ -240,7 +248,7 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
     # return p-value if requested using anova
     if (incl_pvalues == T){
       if (weighted == T) {
-        p <- summary(svyglm(as.formula(paste0(colvariable, "~", var)),
+        p <- summary(survey::svyglm(as.formula(paste0(colvariable, "~", var)),
                             design = design, 
                             family = 'quasibinomial'))$coefficients[2, 4]
       } else {
@@ -299,6 +307,7 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
                         lapply(c(lapply(binaryvars, returnRowCat, r = 1), 
                                  lapply(nonbinary, returnRowCat, r = 0)), 
                                data.frame, stringsAsFactors=FALSE))
+    names(cattable) <-  c(1:length(cattable))
     rowheadercat <- rep("N(%)", col_dim)
     if(incl_pvalues == T){
       rowheadercat <- c(rowheadercat, '')
@@ -308,17 +317,18 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
     conttable <- do.call(rbind, 
                          lapply(lapply(contvars, returnRowContinuous), 
                                 data.frame, stringsAsFactors=FALSE))
+    names(conttable) <- c(1:length(conttable))
     rowheadercont <- rep("Mean(SD)", col_dim)
     if(incl_pvalues == T){
       rowheadercont <- c(rowheadercont, '')
     }
   }
-
+  
+  
   finaltab <- as.matrix(rbind.data.frame(rowheadercat, 
                                          cattable, 
                                          rowheadercont, 
                                          conttable,
-                                         make.row.names = F,
                                          stringsAsFactors = F))
 
 
