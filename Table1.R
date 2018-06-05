@@ -41,13 +41,13 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
   #check that all arguments are valid 
   if (!is.atomic(rowvars)) stop("Please pass row variables as a vector")
   classes <- sapply(data[, rowvars], class)
-  if (!all(classes %in% c('integer', 'factor', 'logical', 'double'))) 
+  if (!all(classes %in% c('integer', 'factor', 'logical', 'double', 'numeric'))) 
     stop('Row variables must be numeric or factors')
   
   if(!is.null(MedIQR)) {
     if(!is.character(MedIQR)) stop('Median IQR requests must be variable names')
     classes <- sapply(data[, MedIQR, drop = F], class)
-    if(!all(classes %in% c('integer', 'double')))
+    if(!all(classes %in% c('integer', 'double', 'numeric')))
       stop('Median IQR requests must be continous variables')
   }
   
@@ -134,7 +134,6 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
            n = c(title, levels(data[,i])))
   }
   
-  
   # get number of levels for categorical variables and set rownames
   numlevels <- lapply(catvars, function(i) {length(levels(data[, i]))})
   
@@ -154,8 +153,13 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
   
   # continous variables 
   contvars <- rowvars[vartypes == F]
-
+  contvars <- contvars[order(contvars %in% MedIQR)]
   continuous_labels <- contvars
+  if(!length(MedIQR) == length(contvars) & !is.null(MedIQR))
+    y <- min(which(contvars %in% MedIQR))
+    continuous_labels <- c(contvars[1:(y-1)], ' ', 
+                           contvars[y:length(contvars)])
+  
   
   if(emphasis == 'b') {
     continuous_labels <- paste0('**', continuous_labels, '**')
@@ -164,8 +168,9 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
   # if missing are included add a line for the missing count
   if(incl_missing == T & length(contvars) != 0) {
     continuous_labels  <- unlist(
-      lapply(1:length(contvars), function(x){
+      sapply(1:length(contvars), function(x){
         if (sum(is.na(data[,contvars[x]])) >0){
+          if(x >= y) x <- x+1
           emp <- ''
           # add slashes for indent if set
           if (emphasis == 's') emp <- '\\ '
@@ -177,7 +182,6 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
   }
   
   
-   
   # put together all rownames
   rnames <- unlist(c(" ", binarylabs, nonbinlab," ",continuous_labels))
   
@@ -199,43 +203,57 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
     n <- match(tmp, rnames)
     rnames[n] <- row_var_names
   }
-    
+  
+  RowCatWeighted <- function(){
+    n <- survey::svytable(as.formula(paste0("~", var, ' + ', colvariable)), 
+                          design, 
+                          round = T, addNA = T)
+    dimnames(n)[[1]][is.na(dimnames(n)[[1]])] <- 'Missing'
+    p <- survey::svychisq(as.formula(paste0("~", var, ' + ', colvariable)), 
+                          design, 
+                          statistic = 'F')$p.value
+    return(list(n = n, p = p))
+  }
+  
+  RowCatUnweighted <- function(){
+    n <- table(data[, var],data[, colvariable])
+    p <- anova(glm(as.formula(paste0(colvariable, "~", var)), 
+                   data = data, 
+                   family = binomial()), test = 'LRT')$`Pr(>Chi)`[2]
+    return(list(n = n, p = p))
+  }
+
   # function to return rows for categorical variables
   returnRowCat <- function(var, r){
     levs <- length(levels(data[,var])) - r
-    if (weighted == T){
-      n <- survey::svytable(as.formula(paste0("~", var, ' + ', 
-                                      colvariable)), design, 
-                    round = T, addNA = T)
+    if (weighted){
+      n <- survey::svytable(as.formula(paste0("~", var, ' + ', colvariable)), 
+                            design, 
+                            round = T, addNA = T)
       dimnames(n)[[1]][is.na(dimnames(n)[[1]])] <- 'Missing'
+      p <- survey::svychisq(as.formula(paste0("~", var, ' + ', colvariable)), 
+                            design, 
+                            statistic = 'F')$p.value
+      return(list(n = n, p = p))
     } else {
       n <- table(data[, var],data[, colvariable])
-    }
-    pct <- round(prop.table(n, margin = 2) *100, 0)
-    p <- NULL
-    repp <- 0
-    # if requested get p-value using a univariable logisitic regression and a 
-    # liklihood ratio test
-    if (incl_pvalues == T){
-      if (weighted == T){
-        p <- survey::svychisq(as.formula(paste0("~", var, ' + ', 
-                                        colvariable)), design, 
-                              statistic = 'F')$p.value
-      } else {
-        p <- anova(glm(as.formula(paste0(colvariable, "~", var)), 
+      p <- anova(glm(as.formula(paste0(colvariable, "~", var)), 
                      data = data, 
                      family = binomial()), test = 'LRT')$`Pr(>Chi)`[2]
-      }
-      p <- ifelse(p < 0.01, '<0.01', sprintf('%.2f',p))
-      repp <- levs
     }
-    
+    pct <- round(prop.table(n, margin = 2) *100, 0)
+    p <- ifelse(p < 0.01, '<0.01', sprintf('%.2f',p))
+    repp <- levs
+    if (!incl_pvalues) {
+      p <- NULL
+      repp <- 0
+    }
     n_per <- cbind(matrix(paste0(format(n[1:levs,], big.mark = ',', trim = T), 
-                                 "(", percent, ")"), nrow = levs, 
+                                 "(", pct[1:levs,], ")"), nrow = levs, 
                           byrow = F), rep(" ", repp))
     returnRow <- rbind(c(rep(" ", col_dim), p), n_per)
     return(returnRow)
-  }
+  }  
 
   # function to return continuous rows 
   returnRowContinuous <- function(var){
@@ -286,7 +304,7 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
 
       } else {
         summ <- aggregate(data[, var], by = list(data[, colvariable]), 
-                          quantile, probs = c(0.5, 0.25, 0.75))
+                          quantile, probs = c(0.5, 0.25, 0.75), na.rm = T)
         summ <- round(summ$x, 0)
       }
       summ <- paste0(summ[, 1], "(", summ[, 2], "-", summ[, 3], ")")
@@ -306,7 +324,7 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
       p <- ifelse (p < 0.01, '<0.01', sprintf('%.2f', p))
     }
     
-    returnRow <- matrix(c(m_sd, p), nrow = 1, byrow = T)
+    returnRow <- matrix(c(summ, p), nrow = 1, byrow = T)
     
     # add row for missing if requested
     if (incl_missing == T & sum(is.na(data[, var])) > 0){
@@ -318,7 +336,7 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
         spacer <- ' '
       }
       N_pct <- c(paste0(N[], '(', pct[], ")"), spacer)
-      returnRow <- matrix(c(returnRow, N_pct), nrow = 2, byrow = T)
+      returnRow <- rbind(returnRow, N_pct)
     }
     return(returnRow)
   }
@@ -344,22 +362,35 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
                          lapply(lapply(contvars, returnRowContinuous), 
                                 data.frame, stringsAsFactors=FALSE))
     names(conttable) <- c(1:length(conttable))
-    rowheadercont <- rep("Mean(SD)", col_dim)
-    if(incl_pvalues == T){
-      rowheadercont <- c(rowheadercont, '')
+    add_p <- NULL
+    if(incl_pvalues == T) add_p <- ''
+    rowheadercont2 <- NULL
+    if(length(MedIQR) == length(contvars)) {
+      rowheadercont <- rep('Median(IQR)', col_dim)
+      }
+    rowheadercont <- rep('Mean(SD)', col_dim)
+    if(!is.null(MedIQR)) {
+      rowheadercont2 <- rep('Median(IQR)', col_dim)
+      rowheadercont2 <- c(rowheadercont2, add_p)
+    rowheadercont <- c(rowheadercont, add_p)
     }
+    contvarsMed <- conttable[contvars %in% MedIQR, ]
+    contvarsMSD <- conttable[!contvars %in% MedIQR, ]
   }
   
   
   finaltab <- as.matrix(rbind.data.frame(rowheadercat, 
                                          cattable, 
                                          rowheadercont, 
-                                         conttable,
+                                         contvarsMSD,
+                                         rowheadercont2, 
+                                         contvarsMed, 
                                          stringsAsFactors = F))
 
 
-  dimnames(finaltab) <- list(rnames, cnames)
+  #dimnames(finaltab) <- list(rnames, cnames)
   return(finaltab)
 }
+
 
 
