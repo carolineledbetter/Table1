@@ -1,6 +1,7 @@
 Table1 <- function(rowvars, colvariable, data, row_var_names = NULL, 
                    incl_missing = F, incl_pvalues = T, 
-                   emphasis = c('s', 'b', 'n')) {
+                   emphasis = c('s', 'b', 'n'), 
+                   MedIQR = NULL) {
   # determing if data is a design object or data frame
   weighted <- F
   if (!is.data.frame(data)){
@@ -10,12 +11,12 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
         stop('Survey Package is required for weighted tables')
       }
       design <- data
-      data <- design$variables[0,]
+      data <- design$variables
       weighted <- T
-      if (incl_missing == T) {
-        warning('Missing is turned off for weighted tables')
-        incl_missing <- F
-      }
+      # if (incl_missing == T) {
+      #   warning('Missing is turned off for weighted tables')
+      #   incl_missing <- F
+      # }
     } else {
         stop('Data is not a data frame or design object')
       }
@@ -39,6 +40,16 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
   
   #check that all arguments are valid 
   if (!is.atomic(rowvars)) stop("Please pass row variables as a vector")
+  classes <- sapply(data[, rowvars], class)
+  if (!all(classes %in% c('integer', 'factor', 'logical', 'double'))) 
+    stop('Row variables must be numeric or factors')
+  
+  if(!is.null(MedIQR)) {
+    if(!is.character(MedIQR)) stop('Median IQR requests must be variable names')
+    classes <- sapply(data[, MedIQR, drop = F], class)
+    if(!all(classes %in% c('integer', 'double')))
+      stop('Median IQR requests must be continous variables')
+  }
   
   if (weighted == T) {
     if (length(unique(design$variables[, colvariable])) > 20) {
@@ -79,12 +90,13 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
   
   if (is.numeric(colvariable))  colvariable <- names(data)[colvariable]
 
-  #set column names
+  #set column names and remove missing colvariable
   if (weighted == T) {
     Col_n <- survey::svytable(as.formula(paste0("~", colvariable)),
                       design, round = T)
   } else {
     Col_n <- table(data[, colvariable])
+    data <- data[!is.na(data[, colvariable]), ]
   }
   
   p_str <- NULL
@@ -98,18 +110,19 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
   col_dim <- length(levels(data[, colvariable]))
   
   # determine row types and names
-  vartypes <- lapply(rowvars, function(i) {is.factor(data[, i])})
+  vartypes <- lapply(data[, rowvars], is.factor)
   catvars <- rowvars[vartypes == T]
                
   
   #add missing level for factors 
   if(incl_missing == T) {
-    for(i in catvars){
-      if(any(is.na(data[,i]))){
-        levels(data[,i]) <- c(levels(data[,i]),'Missing')
-        data[,i][is.na(data[,i])] <- 'Missing'
-      }
-    }; remove(i)
+    data[, catvars] <- lapply(data[, catvars, drop = F],
+                                        addNA, ifany = T)
+    data[, catvars] <- lapply(data[, catvars, drop = F], 
+                              function(x){
+      levels(x)[is.na(levels(x))] <- "Missing"
+      x
+    })
   }
   
   # set row name emphasis
@@ -120,6 +133,7 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
            b = c(paste0('**', title, '**'), levels(data[,i])), 
            n = c(title, levels(data[,i])))
   }
+  
   
   # get number of levels for categorical variables and set rownames
   numlevels <- lapply(catvars, function(i) {length(levels(data[, i]))})
@@ -192,12 +206,12 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
     if (weighted == T){
       n <- survey::svytable(as.formula(paste0("~", var, ' + ', 
                                       colvariable)), design, 
-                    round = T)
-      svychisq(as.formula(paste0("~", var, ' + ', 
-                                 colvariable)), design, statistic = 'F')
+                    round = T, addNA = T)
+      dimnames(n)[[1]][is.na(dimnames(n)[[1]])] <- 'Missing'
     } else {
       n <- table(data[, var],data[, colvariable])
     }
+    pct <- round(prop.table(n, margin = 2) *100, 0)
     p <- NULL
     repp <- 0
     # if requested get p-value using a univariable logisitic regression and a 
@@ -216,8 +230,6 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
       repp <- levs
     }
     
-    percent <- t(sapply(1:levs, function(i){round(n[i,] / apply(n,2,sum) 
-                                                  * 100, digits = 0)}))
     n_per <- cbind(matrix(paste0(format(n[1:levs,], big.mark = ',', trim = T), 
                                  "(", percent, ")"), nrow = levs, 
                           byrow = F), rep(" ", repp))
@@ -230,11 +242,11 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
     # make table with mean and sd
     if (weighted == T){ 
       summ <- survey::svyby(formula = as.formula(paste0("~", var)),
-                    by = as.formula(paste0("~", colvariable)), 
-                    FUN = survey::svymean, design = design)
+                            by = as.formula(paste0("~", colvariable)), 
+                            FUN = survey::svymean, design = design)
       # convert to same structure as unweighted summary
       summ <- matrix(c(summ[,2], summ[,3]), nrow = 2, byrow = T)
-    } else {
+     } else {
       summ <- sapply(levels(data[, colvariable]), function(i) {
         mean <- mean(data[, var][data[, colvariable] == i], 
                    na.rm = T)
@@ -242,6 +254,42 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
                na.rm = T)
         return(c(mean, sd))
       })
+     }
+    #round mean and sd appropriately
+    if (abs(summ[2, 1]) >= 10){
+      m_sd <- paste0(round(summ[1, ], digits = 0), "(", 
+                     round(summ[2, ], digits = 0), ")")
+    } else{
+      if (abs(summ[2, 1]) >= 1){
+        m_sd <- paste0(sprintf('%.1f', summ[1, ]), "(", 
+                       sprintf('%.1f', summ[2, ]), ")")
+      } else{
+        if (abs(summ[2, 1]) >= 0.1){
+          m_sd <- paste0(sprintf('%.2f', summ[1, ]), "(", 
+                         sprintf('%.2f', summ[2, ]), ")")
+        } else{
+          if (abs(summ[2,1]) >= 0.01){
+            m_sd <- paste0(sprintf('%.3f', summ[1, ]), "(", 
+                           sprintf('%.3f', summ[2, ]), ")")
+          }
+          m_sd <- paste0(sprintf('%.2e', summ[1, ]), "(", 
+                         sprintf('%.2e', summ[2, ]), ")")
+        }}}
+    summ <- m_sd
+    if (var %in% MedIQR){
+      if (weighted == T){
+        summ <- survey::svyby(formula = as.formula(paste0("~", var)),
+                              by = as.formula(paste0("~", colvariable)), 
+                              FUN = survey::svyquantile, design = design, 
+                              quantiles = c(0.5, 0.25, 0.75), keep.var = F)
+        summ <- round(summ[2:4], 0)
+
+      } else {
+        summ <- aggregate(data[, var], by = list(data[, colvariable]), 
+                          quantile, probs = c(0.5, 0.25, 0.75))
+        summ <- round(summ$x, 0)
+      }
+      summ <- paste0(summ[, 1], "(", summ[, 2], "-", summ[, 3], ")")
     }
     
     p <- NULL
@@ -258,33 +306,11 @@ Table1 <- function(rowvars, colvariable, data, row_var_names = NULL,
       p <- ifelse (p < 0.01, '<0.01', sprintf('%.2f', p))
     }
     
-    #round mean and sd appropriately
-    if (abs(summ[1, 1]) >= 10){
-      m_sd <- paste0(round(summ[1, ], digits = 0), "(", 
-                     round(summ[2, ], digits = 0), ")")
-    } else{
-      if (abs(summ[1, 2]) >= 1){
-        m_sd <- paste0(sprintf('%.1f', summ[1, ]), "(", 
-                       sprintf('%.1f', summ[2, ]), ")")
-      } else{
-        if (abs(summ[1, 2]) >= 0.1){
-          m_sd <- paste0(sprintf('%.2f', summ[1, ]), "(", 
-                         sprintf('%.2f', summ[2, ]), ")")
-        } else{
-          if (abs(summ[1,2]) >= 0.01){
-            m_sd <- paste0(sprintf('%.3f', summ[1, ]), "(", 
-                           sprintf('%.3f', summ[2, ]), ")")
-          }
-          m_sd <- paste0(sprintf('%.2e', summ[1, ]), "(", 
-                           sprintf('%.2e', summ[2, ]), ")")
-          }}}
     returnRow <- matrix(c(m_sd, p), nrow = 1, byrow = T)
     
     # add row for missing if requested
     if (incl_missing == T & sum(is.na(data[, var])) > 0){
-      N <- sapply(levels(data[, colvariable]), function(i){
-             sum(is.na(data[, var][data[, colvariable] == i]))
-                 })
+      N <- table(data[, colvariable][is.na(data[, var])])
       pct <- as.vector(round(
         (N/table(data[, colvariable])) * 100,0))
       spacer <- NULL
