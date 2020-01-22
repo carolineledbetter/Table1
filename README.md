@@ -1,3 +1,7 @@
+# Archived
+This repository was achived on 1/22/2020. 
+Much of what was in this repository was incorporated into the CIDAtools package. 
+
 This is the the Table1 function repository created by Caroline Ledbetter.
 
 Table1 is a function I created to provide characteristics of a study group stratified by some variable (usually an exposure). 
